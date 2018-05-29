@@ -54,7 +54,6 @@ pipeline {
                 sh "git config --global credential.helper store"
                 sh "jx step validate --min-jx-version 1.1.73"
                 sh "jx step git credentials"
-
                 sh "make tag"
             }
             dir ('/home/jenkins/go/src/gitea-gitea.jx.192.168.64.21.nip.io/odzhu/out') {
