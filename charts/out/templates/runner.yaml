@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: infrapack-{{ .Release.Name }}{{ .Release.Revision }}
+spec:
+  template:
+    spec:
+      serviceAccountName: infrapack-{{ .Release.Name }}
+      initContainers:
+      - name: copytoworkdir
+        image: {{ .Values.image }}
+        workingDir: /infrapack
+        command: ["sh",  "-c", "cp -rf . /code/ && cp -f /state/* /code/ "]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+          - name: state
+            mountPath: /state
+      - name: rendertemplates
+        image: "hashicorp/consul-template:0.19.4-alpine"
+        workingDir: /code
+        command: ["sh", "/scripts/consul-template.sh"]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+          - name: scripts
+            mountPath: /scripts
+      - name: packerbuild
+        image: hashicorp/packer:1.2.3
+        workingDir: /code
+        command: ["sh", "/scripts/packerbuild.sh"]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+          - name: state
+            mountPath: /state
+          - name: scripts
+            mountPath: /scripts
+      - name: terraformapply
+        image: hashicorp/terraform:0.11.7
+        workingDir: /code
+        command: [ 'sh', '-c', '[ -f ./init.sh ] && source ./init.sh ; terraform init && terraform apply' ]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+      - name: savestate
+        image: lachlanevenson/k8s-kubectl:v1.10.2
+        workingDir: /code
+        command: [ 'sh', '/scripts/savestate.sh' ]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+          - name: scripts
+            mountPath: /scripts
+      containers:
+      - name: debug
+        image: lachlanevenson/k8s-kubectl:v1.10.2
+        workingDir: /code
+        command: ["tail",  "-f", "/dev/null"]
+        volumeMounts:
+          - name: code
+            mountPath: /code
+          - name: state
+            mountPath: /state
+      volumes:
+        - name: scripts
+          configMap:
+            name: scripts-{{ .Release.Name }}{{ .Release.Revision }}
+        - name: state
+          secret:
+            secretName: state-{{ .Release.Name }}
+        - name: code
+          emptyDir: 
+            medium: Memory
+      restartPolicy: Never
+  backoffLimit: 4

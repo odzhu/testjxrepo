@@ -1,0 +1,18 @@
+apiVersion: skaffold/v1alpha2
+kind: Config
+build:
+  artifacts:
+  - imageName: infrapack
+deploy:
+  helm:
+    releases:
+    - name: infrapack
+      chartPath: charts/hcl
+      namespace: default
+      values:
+        image: infrapack
+profiles:
+  - name: gcb
+    build:
+      googleCloudBuild:
+        projectId: infrapack
